@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Offline Monthly Expense Ledger</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- PDF Generation Libraries -->
+    <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/jspdf-autotable@3.5.23/dist/jspdf.plugin.autotable.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .modal-backdrop { background-color: rgba(0, 0, 0, 0.5); }
+        .details-section { transition: all 0.3s ease-in-out; }
+        .editable-cell {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .editable-cell:hover {
+            background-color: #f0f9ff; /* light blue on hover */
+            text-decoration: underline;
+            text-decoration-style: dotted;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900">
+    <div class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl sm:text-4xl font-bold">Monthly Expense Ledger</h1>
+            <p class="text-gray-600 mt-1">Your data is saved securely in this browser.</p>
+        </header>
+
+        <!-- Company Details Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-6 details-section">
+            <h2 class="text-xl font-bold mb-4">Report Details</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block mb-2 text-sm font-bold text-gray-700">Period From</label>
+                    <input type="date" id="periodFrom" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block mb-2 text-sm font-bold text-gray-700">Period To</label>
+                    <input type="date" id="periodTo" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block mb-2 text-sm font-bold text-gray-700">Employee Name</label>
+                    <input type="text" id="employeeName" placeholder="John Doe" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block mb-2 text-sm font-bold text-gray-700">Employee ID</label>
+                    <input type="text" id="employeeId" placeholder="EMP12345" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block mb-2 text-sm font-bold text-gray-700">Submission Date</label>
+                    <input type="date" id="submissionDate" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                 <div>
+                    <label class="block mb-2 text-sm font-bold text-gray-700">Company Logo</label>
+                    <div class="flex items-center gap-4">
+                        <input type="file" id="logoUpload" accept="image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                        <img id="logoPreview" src="" alt="Logo Preview" class="h-16 hidden rounded-lg shadow-sm"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <main class="bg-white rounded-xl shadow-lg p-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                <div class="flex items-center gap-4">
+                    <button id="prevMonth" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg font-bold">&lt;</button>
+                    <span id="currentMonth" class="text-xl font-semibold w-48 text-center"></span>
+                    <button id="nextMonth" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg font-bold">&gt;</button>
+                </div>
+                <div class="flex gap-2 sm:gap-4">
+                     <button id="addEntry" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold">Add Entry</button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full table-auto">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                            <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Particulars</th>
+                            <th class="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Advance</th>
+                            <th class="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
+                            <th class="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
+                            <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
+                            <th class="py-3 px-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ledgerBody" class="divide-y divide-gray-200"></tbody>
+                </table>
+                 <div id="no-entries-message" class="text-center py-8 text-gray-500 hidden">
+                    <p>No entries logged for this month. Click "Add Entry" to get started!</p>
+                </div>
+            </div>
+
+            <div class="mt-6 border-t pt-4">
+                <div class="flex justify-end gap-8">
+                    <div class="text-right">
+                        <p class="text-sm text-gray-500">Total Advances</p>
+                        <p class="text-lg font-semibold text-green-600" id="totalAdvances">0.00</p>
+                    </div>
+                     <div class="text-right">
+                        <p class="text-sm text-gray-500">Total Payments</p>
+                        <p class="text-lg font-semibold text-red-600" id="totalPayments">0.00</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-gray-500">Closing Balance</p>
+                        <p class="text-lg font-bold" id="closingBalance">0.00</p>
+                    </div>
+                </div>
+            </div>
+             <div class="flex flex-col sm:flex-row justify-end items-center mt-6 gap-4 border-t pt-6">
+                 <button id="downloadCSV" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Download CSV</button>
+                 <button id="downloadPDF" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Download PDF</button>
+            </div>
+        </main>
+        
+        <footer class="text-right mt-8 pr-2">
+            <div class="inline-flex items-center space-x-2 opacity-60">
+                <p class="text-xs text-gray-500">Developed by</p>
+                <svg width="40" height="20" viewBox="0 0 40 20" xmlns="http://www.w3.org/2000/svg">
+                    <text x="0" y="15" font-family="'Times New Roman', serif" font-size="16" font-weight="bold" fill="#2d5a2d">RAJ</text>
+                </svg>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Entry Form Modal -->
+    <div id="entryModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center hidden modal-backdrop">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md m-4">
+            <h2 class="text-2xl font-bold mb-6" id="modalTitle">Add/Edit Entry</h2>
+            <form id="entryForm" novalidate>
+                <label class="block mb-2 text-sm font-bold text-gray-700">Type:</label>
+                <select id="entryType" class="w-full mb-4 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="payment">Payment</option>
+                    <option value="advance">Advance</option>
+                </select>
+                <label class="block mb-2 text-sm font-bold text-gray-700">Date:</label>
+                <input type="date" id="entryDate" class="w-full mb-4 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
+                <label class="block mb-2 text-sm font-bold text-gray-700">Particulars:</label>
+                <input type="text" id="entryParticulars" placeholder="e.g., Office Travel" class="w-full mb-4 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
+                <label class="block mb-2 text-sm font-bold text-gray-700">Amount:</label>
+                <input type="number" id="entryAmount" placeholder="0.00" class="w-full mb-4 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" min="0.01" step="0.01" required />
+                <label class="block mb-2 text-sm font-bold text-gray-700">Remarks:</label>
+                <input type="text" id="entryRemarks" placeholder="Optional notes" class="w-full mb-4 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <div class="flex justify-end gap-4">
+                    <button type="button" id="cancelEntry" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold rounded-lg">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const LEDGER_STORAGE_KEY = 'expenseLedgerData_v5';
+            const DETAILS_STORAGE_KEY = 'companyDetails_v5';
+
+            // Elements
+            const currentMonthSpan = document.getElementById('currentMonth');
+            const prevMonthBtn = document.getElementById('prevMonth');
+            const nextMonthBtn = document.getElementById('nextMonth');
+            const addEntryBtn = document.getElementById('addEntry');
+            const downloadCSVBtn = document.getElementById('downloadCSV');
+            const downloadPDFBtn = document.getElementById('downloadPDF');
+            const ledgerBody = document.getElementById('ledgerBody');
+            const noEntriesMessage = document.getElementById('no-entries-message');
+            const totalAdvancesSpan = document.getElementById('totalAdvances');
+            const totalPaymentsSpan = document.getElementById('totalPayments');
+            const closingBalanceSpan = document.getElementById('closingBalance');
+            const entryModal = document.getElementById('entryModal');
+            const entryForm = document.getElementById('entryForm');
+            const modalTitle = document.getElementById('modalTitle');
+            const entryTypeInput = document.getElementById('entryType');
+            const entryDateInput = document.getElementById('entryDate');
+            const entryParticularsInput = document.getElementById('entryParticulars');
+            const entryAmountInput = document.getElementById('entryAmount');
+            const entryRemarksInput = document.getElementById('entryRemarks');
+            const cancelEntryBtn = document.getElementById('cancelEntry');
+            
+            // Details Elements
+            const periodFromInput = document.getElementById('periodFrom');
+            const periodToInput = document.getElementById('periodTo');
+            const submissionDateInput = document.getElementById('submissionDate');
+            const employeeNameInput = document.getElementById('employeeName');
+            const employeeIdInput = document.getElementById('employeeId');
+            const logoUploadInput = document.getElementById('logoUpload');
+            const logoPreview = document.getElementById('logoPreview');
+
+            // State
+            let ledgerData = {};
+            let companyDetails = {};
+            let currentYearMonth;
+            let editEntryId = null;
+
+            // Utilities
+            const formatYearMonth = (date) => date.toISOString().slice(0, 7);
+            const formatDisplayMonth = (ym) => new Date(ym + '-02').toLocaleString('default', { month: 'long', year: 'numeric' });
+            const generateId = () => '_' + Math.random().toString(36).substr(2, 9);
+            const escapeCsv = (str) => `"${(str || '').replace(/"/g, '""')}"`;
+
+            // Data Functions
+            function loadData() {
+                ledgerData = JSON.parse(localStorage.getItem(LEDGER_STORAGE_KEY)) || {};
+                companyDetails = JSON.parse(localStorage.getItem(DETAILS_STORAGE_KEY)) || {};
+            }
+
+            function saveData() {
+                localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(ledgerData));
+            }
+
+            function saveDetails() {
+                 localStorage.setItem(DETAILS_STORAGE_KEY, JSON.stringify(companyDetails));
+            }
+
+            function populateDetails() {
+                periodFromInput.value = companyDetails.periodFrom || '';
+                periodToInput.value = companyDetails.periodTo || '';
+                submissionDateInput.value = companyDetails.submissionDate || new Date().toISOString().slice(0,10);
+                employeeNameInput.value = companyDetails.empName || '';
+                employeeIdInput.value = companyDetails.empId || '';
+                if (companyDetails.logo) {
+                    logoPreview.src = companyDetails.logo;
+                    logoPreview.classList.remove('hidden');
+                }
+            }
+            
+            // Modal
+            function openModal(editId = null) {
+                editEntryId = editId;
+                entryForm.reset();
+                if (editId) {
+                    modalTitle.textContent = "Edit Entry";
+                    const entry = (ledgerData[currentYearMonth] || []).find(e => e.id === editId);
+                    if (entry) {
+                        entryTypeInput.value = entry.type;
+                        entryDateInput.value = entry.date;
+                        entryParticularsInput.value = entry.particulars;
+                        entryAmountInput.value = entry.amount;
+                        entryRemarksInput.value = entry.remarks || '';
+                    }
+                } else {
+                    modalTitle.textContent = "Add Entry";
+                    entryDateInput.value = new Date().toISOString().slice(0, 10);
+                }
+                entryModal.classList.remove('hidden');
+            }
+
+            const closeModal = () => {
+                entryModal.classList.add('hidden');
+                editEntryId = null;
+            };
+
+            // Rendering
+            function renderTable() {
+                const entries = ledgerData[currentYearMonth] || [];
+                entries.sort((a, b) => a.date.localeCompare(b.date));
+                ledgerBody.innerHTML = '';
+                noEntriesMessage.classList.toggle('hidden', entries.length > 0);
+
+                let runningBalance = 0;
+                let totalAdvances = 0;
+                let totalPayments = 0;
+
+                entries.forEach(entry => {
+                    const amount = Number(entry.amount);
+                    if (entry.type === 'advance') {
+                        runningBalance += amount;
+                        totalAdvances += amount;
+                    } else {
+                        runningBalance -= amount;
+                        totalPayments += amount;
+                    }
+                    const tr = document.createElement('tr');
+                    tr.dataset.id = entry.id; // Add ID to the row for easier access
+                    tr.className = "hover:bg-gray-50";
+                    tr.innerHTML = `
+                        <td class="py-3 px-4">${entry.date}</td>
+                        <td class="py-3 px-4 editable-cell" data-field="particulars" contenteditable="true">${entry.particulars}</td>
+                        <td class="py-3 px-4 text-right text-green-600 font-medium">${entry.type === 'advance' ? amount.toFixed(2) : ''}</td>
+                        <td class="py-3 px-4 text-right text-red-600 font-medium">${entry.type === 'payment' ? amount.toFixed(2) : ''}</td>
+                        <td class="py-3 px-4 text-right font-semibold">${runningBalance.toFixed(2)}</td>
+                        <td class="py-3 px-4 editable-cell" data-field="remarks" contenteditable="true">${entry.remarks || ''}</td>
+                        <td class="py-3 px-4 text-center">
+                            <button class="text-blue-600 hover:underline mr-2 edit-btn" data-id="${entry.id}">Edit</button>
+                            <button class="text-red-600 hover:underline delete-btn" data-id="${entry.id}">Delete</button>
+                        </td>
+                    `;
+                    ledgerBody.appendChild(tr);
+                });
+
+                totalAdvancesSpan.textContent = totalAdvances.toFixed(2);
+                totalPaymentsSpan.textContent = totalPayments.toFixed(2);
+                closingBalanceSpan.textContent = runningBalance.toFixed(2);
+            }
+
+            const updateMonthDisplay = () => currentMonthSpan.textContent = formatDisplayMonth(currentYearMonth);
+
+            // Core Logic
+            function addOrUpdateEntry(entry) {
+                if (!ledgerData[currentYearMonth]) ledgerData[currentYearMonth] = [];
+                if (editEntryId) {
+                    const index = ledgerData[currentYearMonth].findIndex(e => e.id === editEntryId);
+                    if (index !== -1) ledgerData[currentYearMonth][index] = { ...ledgerData[currentYearMonth][index], ...entry };
+                } else {
+                    ledgerData[currentYearMonth].push({ id: generateId(), ...entry });
+                }
+                saveData();
+                renderTable();
+            }
+
+            function deleteEntry(id) {
+                if (!ledgerData[currentYearMonth]) return;
+                ledgerData[currentYearMonth] = ledgerData[currentYearMonth].filter(e => e.id !== id);
+                saveData();
+                renderTable();
+            }
+
+            function changeMonth(offset) {
+                const d = new Date(currentYearMonth + '-02');
+                d.setMonth(d.getMonth() + offset);
+                currentYearMonth = formatYearMonth(d);
+                updateMonthDisplay();
+                renderTable();
+            }
+
+            // Event Handlers
+            function handleFormSubmit(e) {
+                e.preventDefault();
+                const entry = {
+                    type: entryTypeInput.value,
+                    date: entryDateInput.value,
+                    particulars: entryParticularsInput.value.trim(),
+                    amount: Number(entryAmountInput.value),
+                    remarks: entryRemarksInput.value.trim()
+                };
+                if (!entry.date || !entry.particulars || !entry.amount || entry.amount <= 0) {
+                    alert("Please fill all required fields with valid data.");
+                    return;
+                }
+                addOrUpdateEntry(entry);
+                closeModal();
+            }
+
+            function handleTableClick(e) {
+                const target = e.target;
+                if (target.classList.contains('edit-btn')) {
+                    openModal(target.dataset.id);
+                } else if (target.classList.contains('delete-btn')) {
+                    if (confirm("Are you sure you want to delete this entry?")) {
+                        deleteEntry(target.dataset.id);
+                    }
+                }
+            }
+            
+            function handleDetailsChange() {
+                 companyDetails.periodFrom = periodFromInput.value;
+                 companyDetails.periodTo = periodToInput.value;
+                 companyDetails.submissionDate = submissionDateInput.value;
+                 companyDetails.empName = employeeNameInput.value;
+                 companyDetails.empId = employeeIdInput.value;
+                 saveDetails();
+            }
+
+            function handleLogoUpload(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    companyDetails.logo = reader.result;
+                    logoPreview.src = reader.result;
+                    logoPreview.classList.remove('hidden');
+                    saveDetails();
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function handleInlineEdit(e) {
+                const cell = e.target;
+                if (!cell.isContentEditable) return;
+                const entryId = cell.parentElement.dataset.id;
+                const field = cell.dataset.field;
+                const newValue = cell.textContent;
+
+                const entry = (ledgerData[currentYearMonth] || []).find(e => e.id === entryId);
+                if (entry && entry[field] !== newValue) {
+                    entry[field] = newValue;
+                    saveData();
+                    console.log(`Updated ${field} for entry ${entryId}`);
+                }
+            }
+
+            // Downloads
+            function downloadPDF() {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const entries = ledgerData[currentYearMonth] || [];
+                if (entries.length === 0) return alert("No data to export.");
+                
+                const tableColumn = ["Date", "Particulars", "Advance", "Payment", "Balance", "Remarks"];
+                const tableRows = [];
+                let runningBalance = 0, totalAdvances = 0, totalPayments = 0;
+                entries.forEach(entry => {
+                    const amount = Number(entry.amount);
+                    if (entry.type === 'advance') { runningBalance += amount; totalAdvances += amount; } 
+                    else { runningBalance -= amount; totalPayments += amount; }
+                    tableRows.push([entry.date, entry.particulars, entry.type === 'advance' ? amount.toFixed(2) : '', entry.type === 'payment' ? amount.toFixed(2) : '', runningBalance.toFixed(2), entry.remarks || '']);
+                });
+                
+                const drawPage = () => {
+                    const pageWidth = doc.internal.pageSize.getWidth();
+                    const pageHeight = doc.internal.pageSize.getHeight();
+                    const margin = 15;
+                    
+                    doc.setFontSize(22);
+                    doc.setFont("helvetica", "bold");
+                    doc.setTextColor(4, 30, 66);
+                    doc.text("Monthly Expense Ledger", margin, 20);
+                    if (companyDetails.logo) {
+                        try {
+                            const img = new Image();
+                            img.src = companyDetails.logo;
+                            const aspectRatio = img.width / img.height;
+                            const imgHeight = 15;
+                            const imgWidth = imgHeight * aspectRatio;
+                            doc.addImage(img, 'PNG', pageWidth - imgWidth - margin, 12, imgWidth, imgHeight);
+                        } catch (e) { console.error(e); }
+                    }
+
+                    let y = 35;
+                    doc.setFontSize(9);
+                    doc.setFont("helvetica", "bold");
+                    doc.setTextColor(50, 50, 50);
+                    
+                    doc.text("Employee Name:", margin, y);
+                    doc.setFont("helvetica", "normal");
+                    doc.text(companyDetails.empName || 'N/A', margin + 30, y);
+                    doc.setFont("helvetica", "bold");
+                    doc.text("Employee ID:", pageWidth / 2, y);
+                    doc.setFont("helvetica", "normal");
+                    doc.text(companyDetails.empId || 'N/A', pageWidth / 2 + 25, y);
+                    
+                    y += 6;
+                    
+                    const periodString = `${companyDetails.periodFrom || 'N/A'} to ${companyDetails.periodTo || 'N/A'}`;
+                    doc.setFont("helvetica", "bold");
+                    doc.text("Period:", margin, y);
+                    doc.setFont("helvetica", "normal");
+                    doc.text(periodString, margin + 15, y);
+                    doc.setFont("helvetica", "bold");
+                    doc.text("Submission Date:", pageWidth / 2, y);
+                    doc.setFont("helvetica", "normal");
+                    doc.text(companyDetails.submissionDate || 'N/A', pageWidth / 2 + 32, y);
+                    
+                    doc.autoTable({
+                        head: [tableColumn],
+                        body: tableRows,
+                        startY: y + 10,
+                        theme: 'grid',
+                        headStyles: { fillColor: [230, 230, 230], textColor: [50, 50, 50], fontStyle: 'bold', lineWidth: 0.1, lineColor: [200,200,200] },
+                        styles: { fontSize: 8, cellPadding: 2, lineColor: [220, 220, 220], lineWidth: 0.1 },
+                        alternateRowStyles: { fillColor: [248, 249, 250] },
+                        columnStyles: { 
+                            2: { halign: 'right' }, 
+                            3: { halign: 'right' }, 
+                            4: { halign: 'right', fontStyle: 'bold' }
+                        },
+                        didParseCell: function (data) {
+                            if (data.row.section === 'body') {
+                                if (data.column.dataKey === 2 && data.cell.raw) {
+                                    data.cell.styles.textColor = [34, 139, 34];
+                                    data.cell.styles.fontStyle = 'bold';
+                                }
+                                if (data.column.dataKey === 3 && data.cell.raw) {
+                                    data.cell.styles.textColor = [199, 0, 57];
+                                    data.cell.styles.fontStyle = 'bold';
+                                }
+                            }
+                        },
+                        didDrawPage: (data) => {
+                            const finalY = data.cursor.y;
+                            const totalsY = finalY + 10 > pageHeight - 30 ? pageHeight - 30 : finalY + 10;
+                            doc.setFillColor(245, 247, 250);
+                            doc.roundedRect(pageWidth / 2 - 10, totalsY, pageWidth / 2, 20, 3, 3, 'F');
+                            doc.setFontSize(9);
+                            doc.setFont("helvetica", "normal");
+                            doc.setTextColor(80, 80, 80);
+                            doc.text(`Total Advances:`, pageWidth / 2, totalsY + 6);
+                            doc.text(`${totalAdvances.toFixed(2)}`, pageWidth - margin, totalsY + 6, {align:'right'});
+                            doc.text(`Total Payments:`, pageWidth / 2, totalsY + 11);
+                            doc.text(`${totalPayments.toFixed(2)}`, pageWidth - margin, totalsY + 11, {align:'right'});
+                            doc.setFont("helvetica", "bold");
+                            doc.setTextColor(0,0,0);
+                            doc.text(`Closing Balance:`, pageWidth / 2, totalsY + 16);
+                            doc.text(`${runningBalance.toFixed(2)}`, pageWidth - margin, totalsY + 16, {align:'right'});
+                            const pageCount = doc.internal.getNumberOfPages();
+                            doc.setFontSize(8);
+                            doc.setTextColor(150, 150, 150);
+                            doc.text(`Page ${data.pageNumber} of ${pageCount}`, margin, pageHeight - 10);
+                        }
+                    });
+                    
+                    doc.save(`ExpenseSheet_${companyDetails.empName || 'Report'}_${currentYearMonth}.pdf`);
+                };
+                drawPage();
+            }
+
+            function downloadCSV() {
+                const entries = ledgerData[currentYearMonth] || [];
+                if (entries.length === 0) return alert("No data for this month.");
+                const headers = ['Date', 'Particulars', 'Advance', 'Payment', 'Balance', 'Remarks'];
+                const rows = [];
+                let runningBalance = 0, totalAdvances = 0, totalPayments = 0;
+                entries.forEach(e => {
+                    const amount = Number(e.amount);
+                    if (e.type === 'advance') { runningBalance += amount; totalAdvances += amount; }
+                    else { runningBalance -= amount; totalPayments += amount; }
+                    rows.push([e.date, e.particulars, e.type === 'advance' ? amount.toFixed(2) : '', e.type === 'payment' ? amount.toFixed(2) : '', runningBalance.toFixed(2), e.remarks || ''].map(escapeCsv).join(','));
+                });
+                
+                let csvString = [headers.join(','), ...rows].join('\n');
+                csvString += '\n\n'; // Add empty lines
+                csvString += `,,,,"Total Advances:",${totalAdvances.toFixed(2)}\n`;
+                csvString += `,,,,"Total Payments:",${totalPayments.toFixed(2)}\n`;
+                csvString += `,,,,"Closing Balance:",${runningBalance.toFixed(2)}\n`;
+
+                const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.href = url;
+                link.download = `ledger_${currentYearMonth}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            // Initialization
+            function init() {
+                loadData();
+                populateDetails();
+                currentYearMonth = formatYearMonth(new Date());
+                updateMonthDisplay();
+                renderTable();
+
+                // Event Listeners
+                prevMonthBtn.addEventListener('click', () => changeMonth(-1));
+                nextMonthBtn.addEventListener('click', () => changeMonth(1));
+                addEntryBtn.addEventListener('click', () => openModal());
+                cancelEntryBtn.addEventListener('click', closeModal);
+                entryForm.addEventListener('submit', handleFormSubmit);
+                ledgerBody.addEventListener('click', handleTableClick);
+                ledgerBody.addEventListener('focusout', handleInlineEdit); // For in-place editing
+                downloadCSVBtn.addEventListener('click', downloadCSV);
+                downloadPDFBtn.addEventListener('click', downloadPDF);
+                
+                // Listen for changes in detail fields
+                periodFromInput.addEventListener('change', handleDetailsChange);
+                periodToInput.addEventListener('change', handleDetailsChange);
+                submissionDateInput.addEventListener('change', handleDetailsChange);
+                employeeNameInput.addEventListener('change', handleDetailsChange);
+                employeeIdInput.addEventListener('change', handleDetailsChange);
+                logoUploadInput.addEventListener('change', handleLogoUpload);
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
